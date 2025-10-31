@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WeatherSOS</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+  body { background:#fff; color:#111; line-height:1.5; }
+  header { background:#000; color:#fff; padding:3rem 2rem; text-align:center; }
+  header h1 { font-size:2.8rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; }
+  header p { font-size:1.2rem; opacity:0.8; margin-top:0.5rem; }
+  main { max-width:1000px; margin:2rem auto; padding:0 2rem; }
+  .card { margin-bottom:3rem; }
+  .card h2 { font-size:2rem; margin-bottom:1rem; border-left:4px solid #000; padding-left:0.8rem; font-weight:600; }
+  .card p { font-size:1rem; color:#333; margin-bottom:1.2rem; }
+  input, button { font-size:1rem; }
+  input { width:100%; padding:0.8rem; margin-bottom:1rem; border:1px solid #ccc; border-radius:4px; }
+  button { padding:0.9rem 1.8rem; background:#000; color:#fff; border:none; border-radius:4px; cursor:pointer; text-transform:uppercase; letter-spacing:0.5px; }
+  button:hover { background:#222; }
+  #map { height:450px; width:100%; margin-top:1rem; border:1px solid #ccc; border-radius:4px; }
+  .alert-box { background:#ffe8e8; border-left:4px solid #c00; padding:1rem; margin-top:1rem; color:#600; font-weight:500; }
+</style>
+</head>
+<body>
+<header>
+  <h1>WeatherSOS</h1>
+</header>
+
+<main>
+  <!-- Card 1: Identificação do Problema -->
+  <div class="card">
+    <h2>Identificação do Problema</h2>
+    <p>Aplicativo voltado ao gerenciamento de desastres naturais: alertas em tempo real, localização do usuário e resposta imediata para proteger vidas e comunidades.</p>
+  </div>
+
+  <!-- Card 2: Cadastro e Localização -->
+  <div class="card">
+    <h2>Cadastro e Localização</h2>
+    <p>Cadastre-se e autorize o acesso à sua localização para receber alertas específicos da sua área.</p>
+    <input type="text" id="username" placeholder="Seu nome">
+    <button onclick="registerUser()">Cadastrar</button>
+    <p id="location-status"></p>
+  </div>
+
+  <!-- Card 3: Relato de Incidentes -->
+  <div class="card">
+    <h2>Relato de Incidentes</h2>
+    <p>Informe qualquer evento observado, como enchentes ou incêndios, para auxiliar no monitoramento.</p>
+    <input type="text" id="incident-description" placeholder="Descreva o incidente">
+    <button onclick="reportIncident()">Enviar Incidente</button>
+    <p id="incident-status"></p>
+  </div>
+
+  <!-- Card 4: Emissão de Alertas -->
+  <div class="card">
+    <h2>Emissão de Alertas</h2>
+    <p>Simule uma autoridade emitindo alerta. Indique o raio da área de risco em km.</p>
+    <input type="text" id="alert-message" placeholder="Mensagem de alerta">
+    <input type="number" id="alert-radius" placeholder="Raio em km" min="0.1" step="0.1">
+    <button onclick="emitAlert()">Emitir Alerta</button>
+    <div id="alert-container"></div>
+  </div>
+
+  <!-- Card 5: Mapa de Alertas -->
+  <div class="card">
+    <h2>Mapa de Alertas</h2>
+    <p>Visualize sua localização e os alertas recentes próximos a você.</p>
+    <div id="map"></div>
+  </div>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  let user = null;
+  let userCoords = null;
+  const map = L.map('map').setView([-15.7801, -47.9292], 4); // centro do Brasil
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  const alerts = [];
+
+  function registerUser() {
+    const username = document.getElementById('username').value.trim();
+    if (!username) return alert("Digite seu nome!");
+    user = { name: username };
+    document.getElementById('location-status').textContent = "Obtendo localização…";
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        userCoords = [pos.coords.latitude, pos.coords.longitude];
+        document.getElementById('location-status').textContent = `Localização: ${userCoords[0].toFixed(4)}, ${userCoords[1].toFixed(4)}`;
+        L.marker(userCoords).addTo(map).bindPopup("Você está aqui").openPopup();
+        map.setView(userCoords, 12);
+      }, () => {
+        document.getElementById('location-status').textContent = "Não foi possível obter sua localização.";
+      });
+    } else {
+      document.getElementById('location-status').textContent = "Geolocalização não suportada.";
+    }
+  }
+
+  function reportIncident() {
+    const desc = document.getElementById('incident-description').value.trim();
+    if (!desc) return alert("Digite uma descrição do incidente.");
+    if (!userCoords) return alert("Cadastre-se e permita localização primeiro.");
+    document.getElementById('incident-status').textContent =
+      `Incidente registrado: "${desc}" em ${userCoords[0].toFixed(4)}, ${userCoords[1].toFixed(4)}`;
+  }
+
+  function emitAlert() {
+    const message = document.getElementById('alert-message').value.trim();
+    const radiusKm = parseFloat(document.getElementById('alert-radius').value);
+    if (!message) return alert("Digite a mensagem do alerta.");
+    if (!userCoords) return alert("Cadastre-se e permita localização primeiro.");
+    if (isNaN(radiusKm) || radiusKm <= 0) return alert("Digite um raio válido em km.");
+
+    const alertData = { message, coords: [...userCoords], radiusKm };
+    alerts.push(alertData);
+
+    // Mostrar alerta no card
+    const box = document.createElement('div');
+    box.className = 'alert-box';
+    box.textContent = `ALERTA: ${message} (Raio: ${radiusKm} km)`;
+    document.getElementById('alert-container').appendChild(box);
+
+    // Adicionar círculo no mapa
+    const radiusMeters = radiusKm * 1000;
+    L.circle(alertData.coords, {
+      color: 'red',
+      fillColor: '#f03',
+      fillOpacity: 0.3,
+      radius: radiusMeters
+    }).addTo(map).bindPopup(`ALERTA: ${message} (Raio: ${radiusKm} km)`);
+
+    // Adicionar marcador no centro
+    L.marker(alertData.coords, {
+      icon: L.icon({
+        iconUrl:'https://cdn-icons-png.flaticon.com/512/564/564619.png',
+        iconSize:[30,30]
+      })
+    }).addTo(map).bindPopup(`Centro do alerta: ${message}`);
+  }
+</script>
+</body>
+</html>
+
